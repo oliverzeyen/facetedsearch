@@ -7,30 +7,34 @@
  */
 
 var defaults = {
-  items              : [{a:2,b:1,c:2},{a:2,b:2,c:1},{a:1,b:1,c:1},{a:3,b:3,c:1}],
-  facets             : {'a': 'Title A', 'b': 'Title B', 'c': 'Title C'},
-  resultSelector     : '#results',
-  facetSelector      : '#facets',
-  facetContainer     : '<div class=facetsearch id=<%= id %> ></div>',
-  facetTitleTemplate : '<h3 class=facettitle><%= title %></h3>',
-  facetListContainer : '<div class=facetlist></div>',
-  listItemTemplate   : '<div class=facetitem id="<%= id %>"><%= name %> <span class=facetitemcount>(<%= count %>)</span></div>',
-  bottomContainer    : '<div class=bottomline></div>',
-  orderByTemplate    : '<div class=orderby><span class="orderby-title">Sort by: </span><ul><% _.each(options, function(value, key) { %>'+
-                       '<li class=orderbyitem id=orderby_<%= key %>>'+
-                       '<%= value %> </li> <% }); %></ul></div>',
-  countTemplate      : '<div class=facettotalcount><%= count %> Results</div>',
-  deselectTemplate   : '<div class=deselectstartover>Deselect all filters</div>',
-  resultTemplate     : '<div class=facetresultbox><%= name %></div>',
-  noResults          : '<div class=results>Sorry, but no items match these criteria</div>',
-  orderByOptions     : {'a': 'by A', 'b': 'by B', 'RANDOM': 'by random'},
-  state              : {
-                         orderBy : false,
-                         filters : {}
-                       },
-  showMoreTemplate   : '<a id=showmorebutton>Show more</a>',
-  enablePagination   : true,
-  paginationCount    : 20
+  items                   : [{a:2,b:1,c:2},{a:2,b:2,c:1},{a:1,b:1,c:1},{a:3,b:3,c:1}],
+  textSearchFacets        : ['firstname','lastname','description','category','language','continent'],
+  textSearchMinLength     : 1,
+  textSearchInputSelector : '.facetTextSearchQ',
+  facets                  : {'a': 'Title A', 'b': 'Title B', 'c': 'Title C'},
+  resultSelector          : '#results',
+  facetSelector           : '#facets',
+  facetContainer          : '<div class=facetsearch id=<%= id %> ></div>',
+  facetTitleTemplate      : '<h3 class=facettitle><%= title %></h3>',
+  facetListContainer      : '<div class=facetlist></div>',
+  listItemTemplate        : '<div class=facetitem id="<%= id %>"><%= name %> <span class=facetitemcount>(<%= count %>)</span></div>',
+  bottomContainer         : '<div class=bottomline></div>',
+  orderByTemplate         : '<div class=orderby><span class="orderby-title">Sort by: </span><ul><% _.each(options, function(value, key) { %>'+
+                            '<li class=orderbyitem id=orderby_<%= key %>>'+
+                            '<%= value %> </li> <% }); %></ul></div>',
+  countTemplate           : '<div class=facettotalcount><%= count %> Results</div>',
+  deselectTemplate        : '<div class=deselectstartover>Deselect all filters</div>',
+  resultTemplate          : '<div class=facetresultbox><%= name %></div>',
+  noResults               : '<div class=results>Sorry, but no items match these criteria</div>',
+  orderByOptions          : {'a': 'by A', 'b': 'by B', 'RANDOM': 'by random'},
+  state                   : {
+                            orderBy : false,
+                            textSearchQuery : '',
+                            filters : {}
+                            },
+  showMoreTemplate        : '<a id=showmorebutton>Show more</a>',
+  enablePagination        : true,
+  paginationCount         : 20
 }
 
 /**
@@ -59,6 +63,7 @@ jQuery.facetelize = function(usersettings) {
 jQuery.facetUpdate = function() {
   filter();
   order();
+  textSearch();
   updateFacetUI();
   updateResults();
 }
@@ -180,6 +185,30 @@ function order() {
 }
 
 /**
+ * Use free textinput query to filter results on fields
+ * set in "settings.textSearchFacets" array 
+ */
+function textSearch() {
+  if (settings.state.textSearchQuery.length >= settings.textSearchMinLength) {
+    results = _.select(settings.items, function (obj) {
+      var match = false;
+      settings.textSearchFacets.forEach(function(item) {
+        var inner_match = false;
+        // check if value is array. if so implode to string
+        value = (typeof(obj[item]) == 'object' && (obj[item] instanceof Array)) ? obj[item].join(' ') : obj[item];
+        // check if value is present
+        if (value != undefined)
+          inner_match = value.toLowerCase().indexOf(settings.state.textSearchQuery) != -1;
+        if (inner_match == true)
+          match = true;
+      });
+      return match;
+    });
+    settings.currentResults = results;
+  }
+}
+
+/**
  * The given facetname and filtername are activated or deactivated
  * depending on what they were beforehand. This causes the items to
  * be filtered again and the UI is updated accordingly.
@@ -228,6 +257,13 @@ function createFacetUI() {
     facetHtml.append(facetlist);
     $(settings.facetSelector).append(facetHtml);
   });
+
+  // add keyup event handler to send free text search
+  $(settings.textSearchInputSelector).keyup(function(e){
+  	settings.state.textSearchQuery = $(this).val().toLowerCase();
+   	jQuery.facetUpdate();
+  });
+  
   // add the click event handler to each facet item:
   $('.facetitem').click(function(event){
     var filter = getFilterById(this.id);
@@ -263,6 +299,8 @@ function createFacetUI() {
   });
   // Append deselect filters button
   var deselect = $(settings.deselectTemplate).click(function(event){
+    $(settings.textSearchInputSelector).val('');
+    settings.state.textSearchQuery = '';
     settings.state.filters = {};
     jQuery.facetUpdate();
   });
